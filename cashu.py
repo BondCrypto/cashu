@@ -59,10 +59,18 @@ def getCashflows(untilDate):
 	return cashflows + oneoffCashflows + futureOneoffs
 
 def disposableCash(date):
-	print(getCashflows(date))
 	return balance + sum(cashflow.amount for cashflow in getCashflows(date))
 
+def getMin():
+	normalisedFlows = []
+	for flow in regularFlows:
+		normalisedFlow = flow.amount / (flow.howOftenReoccur.days)
+		normalisedFlows.append(normalisedFlow)
+	# Kind of like Costs = Revenues
+	return sum(normalisedFlows)
 
 duration = int(sys.argv[1])
 print('Starting balance: $'+str(balance))
 print('Balance in '+str(duration)+' days time is $'+str(disposableCash(date.today() + datetime.timedelta(days = duration))))
+getMin()
+print("Break point is $"+str(getMin()))
