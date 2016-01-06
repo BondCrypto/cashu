@@ -70,7 +70,12 @@ def getMin():
 	return sum(normalisedFlows)
 
 duration = int(sys.argv[1])
-print('Starting balance: $'+str(balance))
-print('Balance in '+str(duration)+' days time is $'+str(disposableCash(date.today() + datetime.timedelta(days = duration))))
-getMin()
-print("Break point is $"+str(getMin()))
+# print('Starting balance: $'+str(balance))
+# print('Balance in '+str(duration)+' days time is $'+str(disposableCash(date.today() + datetime.timedelta(days = duration))))
+# getMin()
+# print("Break point is $"+str(getMin()))
+
+strx = ''
+for i in range(0, 100):
+	strx += str(disposableCash(date.today() + datetime.timedelta(days = i))) + ','
+print(strx)

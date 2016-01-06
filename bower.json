@@ -1,0 +1,27 @@
+{
+  "name": "cashu",
+  "homepage": "https://github.com/liamzebedee/cashu",
+  "authors": [
+    "Liam Edwards-Playne <liamzebedee@yahoo.com.au>"
+  ],
+  "description": "",
+  "main": "cashu.html",
+  "moduleType": [
+    "es6"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "private": true,
+  "dependencies": {
+    "Chart.js": "~1.0.2",
+    "moment": "~2.11.0",
+    "react": "~0.14.5",
+    "react-chartjs": "~0.7.3"
+  }
+}
