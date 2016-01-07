@@ -4,67 +4,6 @@ function sum(array) { return array.reduce((a, b) => a + b, 0); }
 function yesterday() { return moment().subtract(1, 'day') }
 function listOfNums(N) { return Array.apply(null, {length: N}).map(Number.call, Number) }
 
-class ChartistGraph extends React.Component {
-
-  displayName: 'ChartistGraph'
-
-  componentWillReceiveProps(newProps) {
-    this.updateChart(newProps);
-  }
-
-  componentWillUnmount() {
-    if (this.chartist) {
-      try {
-        this.chartist.detach();
-      } catch (err) {
-        throw new Error('Internal chartist error', err);
-      }
-    }
-  }
-
-  componentDidMount() {
-    this.updateChart(this.props);
-  }
-
-  updateChart(config) {
-    let { type, data } = config;
-    let options = config.options || {};
-    let responsiveOptions = config.responsiveOptions || [];
-    let event;
-
-    if (this.chartist) {
-      this.chartist.update(data, options, responsiveOptions);
-    } else {
-      this.chartist = new Chartist[type](ReactDOM.findDOMNode(this), data, options, responsiveOptions);
-
-      if (config.listener) {
-        for (event in config.listener) {
-          if (config.listener.hasOwnProperty(event)) {
-            this.chartist.on(event, config.listener[event]);
-          }
-        }
-      }
-
-    }
-
-    return this.chartist;
-  }
-
-  render() {
-    const className = this.props.className ? ' ' + this.props.className : ''
-    const style = this.props.style ? this.props.style : {};
-    return (<div className={'ct-chart' + className} style={style} />)
-  }
-
-}
-
-ChartistGraph.propTypes = {
-  type: React.PropTypes.string.isRequired,
-  data: React.PropTypes.object.isRequired,
-  className: React.PropTypes.string,
-  options: React.PropTypes.object,
-  responsiveOptions: React.PropTypes.array
-}
 
 // Classes
 class Cashflow {
@@ -137,11 +76,35 @@ var linkState = React.addons.LinkedStateMixin.linkState;
 // UI
 class CashflowView extends React.Component {
 	render() {
-		return <div>
-			{this.props.name} {this.props.amount} every {this.props.howOftenReoccur.humanize()}
-		</div>;
+		return <tr>
+			<td><small onClick={this.props.deleteCashflow}>del</small> <small>edit</small></td>
+			<td>{this.props.name}</td>
+			<td>${this.props.amount.toFixed(2)}</td>
+			<td>{this.props.howOftenReoccur.humanize()}</td>
+			<td>{this.props.startDate.format('DD/MM/YY')} - {this.props.endDate.format('DD/MM/YY')}</td>
+		</tr>;
 	}
 }
+
+class CashflowEdit extends React.Component {
+	render() {
+		return <div></div>;
+	}
+}
+
+class Notice extends React.Component {
+	render() {
+		return <div className={"ui message attached "+this.props.class}>
+		  <i className="close icon"></i>
+		  <div className="header">
+		    {this.props.header}
+		  </div>
+		  <p>{this.props.msg}
+		</p></div>
+	}
+}
+
+Chart.defaults.global.responsive = true;
 
 class App extends React.Component {
 	constructor(props) {
@@ -155,7 +118,7 @@ class App extends React.Component {
 	  		],
 	  		futureOneoffFlows: [],
 	  		balance: 5206.30 + 779.78,
-	  		numDays: 50
+	  		numDays: 30
 	  	};
 
 	}
@@ -219,12 +182,18 @@ class App extends React.Component {
 		this.setState(newState);
  	}
 
+ 	deleteCashflow(index) {
+ 		let flows = this.state.regularFlows;
+ 		flows.splice(index, 1);
+ 		this.setState({ regularFlows: flows })
+ 	}
+
 	render() {
 		let days = this.state.numDays;
-
-		let closingBalanceOverPeriod = [];
-		for(let i = 1; i < days+1; i++) {
-			closingBalanceOverPeriod.push(this.getDisposableCash(moment().add(i, 'd')))
+		var maxPeriod = 100;
+		let closingBalanceOverPeriod = new Array()
+		for(let day = 1; day < maxPeriod+1; day++) {
+			closingBalanceOverPeriod.push(this.getDisposableCash(moment().add(day, 'd')))
 		}
 
 		let lineChartData = {
@@ -238,44 +207,104 @@ class App extends React.Component {
 					pointStrokeColor : "#fff",
 					pointHighlightFill : "#fff",
 					pointHighlightStroke : "rgba(220,220,220,1)",
-					data : closingBalanceOverPeriod
+					data : closingBalanceOverPeriod.slice(0, days+1)
 				}
 			]
 		}
 		let chartOptions = {responsive: true};
 
 
-		var simpleLineChartData = {
-		  labels: listOfNums(days).map((v) => `${v}`),
-		  series: [
-		    closingBalanceOverPeriod,
-		  ]
-		}
-
 		let breakeven = this.getBreakeven();
-		var alert = breakeven < 0 ? "You are losing money!!!!!" : "You've got overall a positive cash flow. Good work";
-		var money = Math.min(...this.cashflows);
+		var alert = breakeven < 0 ? <Notice msg="You are losing money!!!!!"/> : <Notice header="Good work" msg="You've got overall a positive cash flow. Nice." type="green"/>;
+		var money = Math.min(...closingBalanceOverPeriod);
+
 
 	  	return <div className='ui container'>
-	  		{alert}
-	  		Your balance {money}
 
-	  		Balance: <input type='number' onChange={this.updateState.bind(this, 'balance')} value={this.state.balance}/>
-	  		Numdays: <input type='number' onChange={this.updateState.bind(this, 'numDays')} value={this.state.numDays}/>
+	  		<h1>Cash<span style={{ color: 'blue' }}>u</span></h1>
+
+			<div className="ui two column stackable grid container">
+
+ 
+			  <div className="column">
+			    <div className="ui segment">
+
+	  		<p>How much do you currently have in total? <input type='number' onChange={this.updateState.bind(this, 'balance')} value={this.state.balance}/></p>
+	  		<p>Numdays: <input type='number' onChange={this.updateState.bind(this, 'numDays')} value={this.state.numDays}/></p>
+	  		<LineChart className="item" data={lineChartData} options={chartOptions}/>
+
+
+			    </div>
+			  </div>
+
+			  <div className="column">
+
+			  {alert}
+			    <div className="ui segment attached">
+
+	  		<p>Your disposable balance: <strong>${money.toFixed(2)}</strong>, cash flow {breakeven < 0 ? 'negative' : 'positive'} by <strong>${breakeven<0?'':'+'}{breakeven.toFixed(2)}/day</strong> </p>
+
+
+<h3>Cashflows</h3> <button className='ui button small' onClick={this.addCashflow}>add new</button>
+
+
+<table className="ui very basic collapsing celled table">
+  <thead>
+    <tr>
+
+    <th></th>
+    <th>Name</th>
+    <th>Amount</th>
+    <th>How often</th>
+    <th>Start & End</th>
+
+  </tr></thead>
+  <tbody>
+  	{this.state.regularFlows.map((flow, i) => {
+	  return <CashflowView key={i} {...flow} deleteCashflow={this.deleteCashflow.bind(this, i)}/>;
+	})}
+  </tbody>
+</table>
+
 	  		
-	  		Add/remove regular flows
-	  		-> for example, add a savings plan for your term deposit.
-	  		-> or save for something.
-	  		-> or just say, I'm budgeting this amount of money per week to having a coffe with a friend.
 
-	  		{this.state.regularFlows.map((flow) => {
-	  			return <CashflowView key={flow.name} {...flow}/>;
-	  		})}
+			    </div>
 
-			{//<ChartistGraph data={simpleLineChartData} type={'Line'} />
-		}
+			    <div className='ui segment'>
 
-	  		<LineChart data={lineChartData} options={chartOptions} width={800} height={200}/>
+
+
+<h3 className='ui header'>Add new cashflow</h3>
+<form className="ui form">
+  <div className="field">
+    <label>Name</label>
+    <input type="text" placeholder="Cafe job"/>
+  </div>
+  <div className="inline field">
+    <label>$</label>
+    <input type="number" placeholder="120.2"/>
+  </div>
+  <div className="inline field">
+    <label>Every</label>
+    <input type="text" placeholder="2 days"/>
+  </div>
+  <div className="field">
+    <label>First date</label>
+    <input type="date"/>
+  </div>
+  <div className="field">
+    <label>Last date</label>
+    <input type="date"/>
+  </div>
+  <button className='ui button small'>save</button>
+</form>
+
+			    </div>
+			  </div>
+
+			</div>
+
+
 	  	</div>;
 	}
 }

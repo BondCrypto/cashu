@@ -5,6 +5,11 @@ Predicting finance. No more anxiety about cash flow. No more idle money.
 
 How much money you have:
 
+	  		Add/remove regular flows
+	  		-> for example, add a savings plan for your term deposit.
+	  		-> or save for something.
+	  		-> or just say, I'm budgeting this amount of money per week to having a coffe with a friend.
+
 
 ## Tech
  - React.js
