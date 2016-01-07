@@ -22,6 +22,7 @@
     "Chart.js": "~1.0.2",
     "moment": "~2.11.0",
     "react": "~0.14.5",
-    "react-chartjs": "~0.7.3"
+    "react-chartjs": "~0.7.3",
+    "chartist": "~0.9.5"
   }
 }

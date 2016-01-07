@@ -1,7 +1,10 @@
 cashu
 =====
 
-Predicting finance.
+Predicting finance. No more anxiety about cash flow. No more idle money.
+
+How much money you have:
+
 
 ## Tech
  - React.js

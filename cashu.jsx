@@ -4,6 +4,68 @@ function sum(array) { return array.reduce((a, b) => a + b, 0); }
 function yesterday() { return moment().subtract(1, 'day') }
 function listOfNums(N) { return Array.apply(null, {length: N}).map(Number.call, Number) }
 
+class ChartistGraph extends React.Component {
+
+  displayName: 'ChartistGraph'
+
+  componentWillReceiveProps(newProps) {
+    this.updateChart(newProps);
+  }
+
+  componentWillUnmount() {
+    if (this.chartist) {
+      try {
+        this.chartist.detach();
+      } catch (err) {
+        throw new Error('Internal chartist error', err);
+      }
+    }
+  }
+
+  componentDidMount() {
+    this.updateChart(this.props);
+  }
+
+  updateChart(config) {
+    let { type, data } = config;
+    let options = config.options || {};
+    let responsiveOptions = config.responsiveOptions || [];
+    let event;
+
+    if (this.chartist) {
+      this.chartist.update(data, options, responsiveOptions);
+    } else {
+      this.chartist = new Chartist[type](ReactDOM.findDOMNode(this), data, options, responsiveOptions);
+
+      if (config.listener) {
+        for (event in config.listener) {
+          if (config.listener.hasOwnProperty(event)) {
+            this.chartist.on(event, config.listener[event]);
+          }
+        }
+      }
+
+    }
+
+    return this.chartist;
+  }
+
+  render() {
+    const className = this.props.className ? ' ' + this.props.className : ''
+    const style = this.props.style ? this.props.style : {};
+    return (<div className={'ct-chart' + className} style={style} />)
+  }
+
+}
+
+ChartistGraph.propTypes = {
+  type: React.PropTypes.string.isRequired,
+  data: React.PropTypes.object.isRequired,
+  className: React.PropTypes.string,
+  options: React.PropTypes.object,
+  responsiveOptions: React.PropTypes.array
+}
+
 // Classes
 class Cashflow {
 	constructor(name, amount, howOftenReoccur, startDate, endDate) {
@@ -21,12 +83,11 @@ class Cashflow {
 		var nextDateForThisCashflow = moment(this.startDate).add(this.howOftenReoccur);
 
 		// BUG: should be before or equal to with respect to the end date
-		while(nextDateForThisCashflow.isBefore(this.endDate) && 
-				nextDateForThisCashflow.isBefore(untilDate)) {
-
-			// console.log(`${this.name} - ${nextDateForThisCashflow._d}`)
-			if(nextDateForThisCashflow.isAfter(moment())) {
-				flows.push(new OneoffCashflow(this.name, this.amount, moment(nextDateForThisCashflow)))
+		var minDateToCheckBefore = moment.min(this.endDate, untilDate);
+		var today = moment();
+		while(nextDateForThisCashflow.isBefore(minDateToCheckBefore)) {
+			if(nextDateForThisCashflow.isAfter(today)) {
+				flows.push(new OneoffCashflow(this.name, this.amount, nextDateForThisCashflow))
 			}
 
 			nextDateForThisCashflow = moment(nextDateForThisCashflow).add(this.howOftenReoccur);
@@ -70,9 +131,18 @@ function Datetime(expr) {
 // Hacks
 window['Chartjs'] = Chart;
 var LineChart = window['react-chartjs'].Line;
+var linkState = React.addons.LinkedStateMixin.linkState;
 
 
 // UI
+class CashflowView extends React.Component {
+	render() {
+		return <div>
+			{this.props.name} {this.props.amount} every {this.props.howOftenReoccur.humanize()}
+		</div>;
+	}
+}
+
 class App extends React.Component {
 	constructor(props) {
 		super(props);
@@ -84,8 +154,10 @@ class App extends React.Component {
 				new Cashflow('Living expenses', -246*2/14, TimeDelta('1 day'), new Datetime('12/12/2015'), new Datetime('6/12/2017'))
 	  		],
 	  		futureOneoffFlows: [],
-	  		balance: 5206.30 + 779.78
+	  		balance: 5206.30 + 779.78,
+	  		numDays: 50
 	  	};
+
 	}
 
 	getDisposableCash(atDate) {
@@ -107,15 +179,13 @@ class App extends React.Component {
 		let normalisedFlows = []
 
 		for(let flow of this.state.regularFlows) {
-			console.log(flow.howOftenReoccur)
+			// BUG TODO: this only normalises based on days
 			let normalisedFlow = flow.amount / flow.howOftenReoccur._days;
 			normalisedFlows.push(normalisedFlow);
 		}
 		
 		return sum(normalisedFlows)
 	}
-
-
 
 	componentDidMount() {
 		let self = this;
@@ -142,41 +212,70 @@ class App extends React.Component {
 			});
 		}
 	}
- 
-	render() {
-		var days = 50;
-		console.log(this.getDisposableCash(moment().add(50, 'd')))
-		console.log(this.getDisposableCash(moment().add(50, 'd')))
-		console.log(this.getDisposableCash(moment().add(50, 'd')))
-		var disposable = this.getDisposableCash(moment().add(days, 'd'));
-		let breakeven = this.getBreakeven();
+ 	
+ 	updateState(propName, ev) {
+ 		let newState = {};
+ 		newState[propName] = ev.target.value;
+		this.setState(newState);
+ 	}
 
-		var disposableOverDays = [];
+	render() {
+		let days = this.state.numDays;
+
+		let closingBalanceOverPeriod = [];
 		for(let i = 1; i < days+1; i++) {
-			disposableOverDays.push(this.getDisposableCash(moment().add(i, 'd')))
+			closingBalanceOverPeriod.push(this.getDisposableCash(moment().add(i, 'd')))
 		}
 
-		var lineChartData = {
+		let lineChartData = {
 			labels : listOfNums(days).map((v) => `${v}`),
 			datasets : [
 				{
-					label: "My First dataset",
+					label: "Finances",
 					fillColor : "rgba(220,220,220,0.2)",
 					strokeColor : "rgba(220,220,220,1)",
 					pointColor : "rgba(220,220,220,1)",
 					pointStrokeColor : "#fff",
 					pointHighlightFill : "#fff",
 					pointHighlightStroke : "rgba(220,220,220,1)",
-					data : disposableOverDays
+					data : closingBalanceOverPeriod
 				}
 			]
 		}
-		var chartOptions = {responsive: true};
+		let chartOptions = {responsive: true};
 
-	  	return <div>
-	  		Disposable: {disposable}, Breakeven: {breakeven}
-	  		<button onClick={this.do}>Apply</button>
-	  		<LineChart data={lineChartData} options={chartOptions} width="600" height="250"/>
+
+		var simpleLineChartData = {
+		  labels: listOfNums(days).map((v) => `${v}`),
+		  series: [
+		    closingBalanceOverPeriod,
+		  ]
+		}
+
+		let breakeven = this.getBreakeven();
+		var alert = breakeven < 0 ? "You are losing money!!!!!" : "You've got overall a positive cash flow. Good work";
+		var money = Math.min(...this.cashflows);
+
+	  	return <div className='ui container'>
+	  		{alert}
+	  		Your balance {money}
+
+	  		Balance: <input type='number' onChange={this.updateState.bind(this, 'balance')} value={this.state.balance}/>
+	  		Numdays: <input type='number' onChange={this.updateState.bind(this, 'numDays')} value={this.state.numDays}/>
+	  		
+	  		Add/remove regular flows
+	  		-> for example, add a savings plan for your term deposit.
+	  		-> or save for something.
+	  		-> or just say, I'm budgeting this amount of money per week to having a coffe with a friend.
+
+	  		{this.state.regularFlows.map((flow) => {
+	  			return <CashflowView key={flow.name} {...flow}/>;
+	  		})}
+
+			{//<ChartistGraph data={simpleLineChartData} type={'Line'} />
+		}
+
+	  		<LineChart data={lineChartData} options={chartOptions} width={800} height={200}/>
 	  	</div>;
 	}
 }
