@@ -1,6 +1,8 @@
 cashu
 =====
 
+![screenshot](http://36.media.tumblr.com/0260a31b1dff264a1faa0f989031b9ec/tumblr_o0xcj0IFqJ1trskuwo1_1280.png)
+
 Predicting finance. No more anxiety about cash flow. No more idle money.
 
 How much money you have:
