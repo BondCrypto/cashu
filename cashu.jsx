@@ -49,7 +49,7 @@ class Cashflow {
 		while(nextDateForThisCashflow.isBefore(minDateToCheckBefore) && i < MAX_ITERATIONS) {
 			i++;
 			if(i > 1000) {
-				debugger
+				break
 			}
 
 			if(nextDateForThisCashflow.isAfter(today)) {
@@ -389,6 +389,8 @@ class App extends React.Component {
 
 	<p>How much do you currently have in total? <input type='number' onChange={this.linkState.bind(this, 'balance')} value={this.state.balance}/></p>
 	<p>Numdays: <input type='number' onChange={this.linkState.bind(this, 'numDays')} value={this.state.numDays}/></p>
+
+	<h2 class='title'>The next 30 days</h2>
 	<LineChart className="item" data={lineChartData} options={chartOptions}/>
 
 
