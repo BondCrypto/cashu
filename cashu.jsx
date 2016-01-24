@@ -3,6 +3,11 @@ function merge(obj1, obj2) { return Object.assign(obj1, obj2) }
 function sum(array) { return array.reduce((a, b) => a + b, 0); }
 function yesterday() { return moment().subtract(1, 'day') }
 function listOfNums(N) { return Array.apply(null, {length: N}).map(Number.call, Number) }
+function linkState(propName, ev) {
+	let newState = {};
+	newState[propName] = ev.target.value;
+	this.setState(newState);
+}
 
 
 // Classes
@@ -24,7 +29,14 @@ class Cashflow {
 		// BUG: should be before or equal to with respect to the end date
 		var minDateToCheckBefore = moment.min(this.endDate, untilDate);
 		var today = moment();
-		while(nextDateForThisCashflow.isBefore(minDateToCheckBefore)) {
+		let MAX_ITERATIONS = 10000;
+		let i = 0;
+		while(nextDateForThisCashflow.isBefore(minDateToCheckBefore) && i < MAX_ITERATIONS) {
+			i++;
+			if(i > 1000) {
+				debugger
+			}
+
 			if(nextDateForThisCashflow.isAfter(today)) {
 				flows.push(new OneoffCashflow(this.name, this.amount, nextDateForThisCashflow))
 			}
@@ -67,28 +79,32 @@ function Datetime(expr) {
 	return moment(expr, 'DD/MM/YYYY')
 }
 
+function humanizeDuration(dur) {
+	var x = dur.humanize()
+	if(x === 'a day') return '1 day';
+	return x;
+}
+
 // Hacks
 window['Chartjs'] = Chart;
 var LineChart = window['react-chartjs'].Line;
-var linkState = React.addons.LinkedStateMixin.linkState;
 
 
 // UI
 class CashflowView extends React.Component {
 	render() {
 		return <tr>
-			<td><small onClick={this.props.deleteCashflow}>del</small> <small>edit</small></td>
+			<td>
+			  <div className="ui small basic icon buttons">
+			  <button className="ui button" onClick={this.props.deleteCashflow}><i className="delete icon"></i></button>
+			  <button className="ui button" onClick={this.props.editCashflow}><i className="edit icon"></i></button>
+			  </div>
+			</td>
 			<td>{this.props.name}</td>
 			<td>${this.props.amount.toFixed(2)}</td>
-			<td>{this.props.howOftenReoccur.humanize()}</td>
+			<td>{humanizeDuration(this.props.howOftenReoccur)}</td>
 			<td>{this.props.startDate.format('DD/MM/YY')} - {this.props.endDate.format('DD/MM/YY')}</td>
 		</tr>;
-	}
-}
-
-class CashflowEdit extends React.Component {
-	render() {
-		return <div></div>;
 	}
 }
 
@@ -104,11 +120,76 @@ class Notice extends React.Component {
 	}
 }
 
+class AddNewCashflowForm extends React.Component {
+	constructor(props) {
+		super(props)
+		this.linkState = linkState
+		this.state = merge({}, this.props.editingCashflow)
+	}
+
+	componentWillReceiveProps(nextProps) {
+		if(nextProps.editingCashflow != null) {
+			this.setState({
+				name: nextProps.editingCashflow.name,
+				amount: nextProps.editingCashflow.amount,
+				howOftenReoccur: humanizeDuration(nextProps.editingCashflow.howOftenReoccur),
+				startDate: nextProps.editingCashflow.startDate.format('YYYY-MM-DD'),
+				endDate: nextProps.editingCashflow.endDate.format('YYYY-MM-DD'),
+			})
+		} else {
+			this.resetForm()
+		}
+	}
+
+	resetForm() {
+		this.setState({
+			name: null,
+			amount: 102.2,
+			howOftenReoccur: '14 days',
+			startDate: moment().format('YYYY-MM-DD'),
+			endDate: moment().format('YYYY-MM-DD'),
+		})
+	}
+
+	save() {
+		let cashflow = new Cashflow(this.state.name, +this.state.amount, new TimeDelta(this.state.howOftenReoccur), moment(this.state.startDate), moment(this.state.endDate))
+		this.resetForm()
+		this.props.saveCashflow(cashflow)
+	}
+
+	render() {
+		return <div className="ui form">
+		  <div className="inline field">
+		    <label>Name</label>
+		    <input type="text" placeholder="Cafe job" value={this.state.name} onChange={this.linkState.bind(this, 'name')}/>
+		  </div>
+		  <div className="inline field">
+		    <label>$</label>
+		    <input type="number" value={this.state.amount} onChange={this.linkState.bind(this, 'amount')}/>
+		  </div>
+		  <div className="inline field">
+		    <label>Every</label>
+		    <input type="text" placeholder="2 days" value={this.state.howOftenReoccur} onChange={this.linkState.bind(this, 'howOftenReoccur')}/>
+		  </div>
+		  <div className="field">
+		    <label>First date</label>
+		    <input type="date" value={this.state.startDate} onChange={this.linkState.bind(this, 'startDate')}/>
+		  </div>
+		  <div className="field">
+		    <label>Last date</label>
+		    <input type="date" value={this.state.endDate} onChange={this.linkState.bind(this, 'endDate')}/>
+		  </div>
+		  <button className='ui button small' onClick={this.save.bind(this)}>save</button>
+		</div>;
+	}
+}
+
 Chart.defaults.global.responsive = true;
 
 class App extends React.Component {
 	constructor(props) {
 		super(props);
+		this.linkState = linkState
 		this.state = {
 	  		regularFlows: [
 	  			new Cashflow('BIT Scholarship', +576.92, TimeDelta('14 days'), new Datetime('30/12/2015'), new Datetime('12/12/2017')),
@@ -118,9 +199,10 @@ class App extends React.Component {
 	  		],
 	  		futureOneoffFlows: [],
 	  		balance: 5206.30 + 779.78,
-	  		numDays: 30
+	  		numDays: 30,
+	  		currentlyEditingCashflowKey: null
 	  	};
-
+	  	this.cachedDisposableCash = [];
 	}
 
 	getDisposableCash(atDate) {
@@ -133,8 +215,6 @@ class App extends React.Component {
 		for(let cashflow of this.state.regularFlows) {
 			cashflows.push(...cashflow.getOneOffFlowsForDate(atDate))
 		}
-		this.cashflows = cashflows;
-
 		return cashflows
 	}
 
@@ -151,46 +231,65 @@ class App extends React.Component {
 	}
 
 	componentDidMount() {
-		let self = this;
+		// let self = this;
 
-		if(this.props.saveStateOffline) {
-				localforage.getItem('appState', (err, localStorageState) => {
-				if(err) {
-					console.error("Couldn't retrieve state from local storage");
-					console.error(err);
-				} else {
-					self.setState(merge(this.state, localStorageState));
-				}
-		  	});
-		}
+		// if(this.props.saveStateOffline) {
+		// 		localforage.getItem('appState', (err, localStorageState) => {
+		// 		if(err) {
+		// 			console.error("Couldn't retrieve state from local storage");
+		// 			console.error(err);
+		// 		} else {
+		// 			self.setState(merge(this.state, localStorageState));
+		// 		}
+		//   	});
+		// }
 	}
 
 	componentDidUpdate(prevProps, prevState) {
-		if(this.props.saveStateOffline) {
-			localforage.setItem('appState', this.state, (err, result) => {
-				if(err) {
-					console.error("Couldn't store state to local storage");
-					console.error(err);
-				}
-			});
-		}
+		// if(this.props.saveStateOffline) {
+		// 	localforage.setItem('appState', this.state, (err, result) => {
+		// 		if(err) {
+		// 			console.error("Couldn't store state to local storage");
+		// 			console.error(err);
+		// 		}
+		// 	});
+		// }
 	}
- 	
- 	updateState(propName, ev) {
- 		let newState = {};
- 		newState[propName] = ev.target.value;
-		this.setState(newState);
- 	}
 
  	deleteCashflow(index) {
  		let flows = this.state.regularFlows;
  		flows.splice(index, 1);
- 		this.setState({ regularFlows: flows })
+ 		var newEditingKey = this.state.currentlyEditingCashflowKey;
+ 		if(index === this.state.currentlyEditingCashflowKey) {
+ 			newEditingKey = null;
+ 		} else if(index < this.state.currentlyEditingCashflowKey) {
+ 			newEditingKey--;
+ 		}
+ 		this.setState({ regularFlows: flows, currentlyEditingCashflowKey: newEditingKey })
+ 	}
+
+ 	saveCashflow(cashflow) {
+ 		var flows = this.state.regularFlows;
+ 		if(this.state.currentlyEditingCashflowKey != null) {
+ 			flows[this.state.currentlyEditingCashflowKey] = cashflow
+ 		} else {
+ 			flows.push(cashflow)
+ 		}
+ 		debugger
+ 		this.setState({ regularFlows: flows, currentlyEditingCashflowKey: null })
+ 	}
+
+ 	editCashflow(i) {
+ 		this.setState({ currentlyEditingCashflowKey: i })
+ 	}
+
+ 	addCashflow() {
+ 		this.setState({ currentlyEditingCashflowKey: null })
  	}
 
 	render() {
 		let days = this.state.numDays;
-		var maxPeriod = 100;
+		var maxPeriod = 30;
 		let closingBalanceOverPeriod = new Array()
 		for(let day = 1; day < maxPeriod+1; day++) {
 			closingBalanceOverPeriod.push(this.getDisposableCash(moment().add(day, 'd')))
@@ -218,98 +317,79 @@ class App extends React.Component {
 		var alert = breakeven < 0 ? <Notice msg="You are losing money!!!!!"/> : <Notice header="Good work" msg="You've got overall a positive cash flow. Nice." type="green"/>;
 		var money = Math.min(...closingBalanceOverPeriod);
 
-
+		var currentlyEditingCashflow = this.state.regularFlows[this.state.currentlyEditingCashflowKey];
 	  	return <div className='ui container'>
 
 	  		<h1>Cash<span style={{ color: 'blue' }}>u</span></h1>
 
-			<div className="ui two column stackable grid container">
-
- 
-			  <div className="column">
-			    <div className="ui segment">
-
-	  		<p>How much do you currently have in total? <input type='number' onChange={this.updateState.bind(this, 'balance')} value={this.state.balance}/></p>
-	  		<p>Numdays: <input type='number' onChange={this.updateState.bind(this, 'numDays')} value={this.state.numDays}/></p>
-	  		<LineChart className="item" data={lineChartData} options={chartOptions}/>
 
 
-			    </div>
-			  </div>
-
-			  <div className="column">
-
-			  {alert}
-			    <div className="ui segment attached">
-
-	  		<p>Your disposable balance: <strong>${money.toFixed(2)}</strong>, cash flow {breakeven < 0 ? 'negative' : 'positive'} by <strong>${breakeven<0?'':'+'}{breakeven.toFixed(2)}/day</strong> </p>
+<div className="ui two column grid container">
 
 
-<h3>Cashflows</h3> <button className='ui button small' onClick={this.addCashflow}>add new</button>
+<div className="two column row">
+<div className="column">
+
+{alert}
+	<section className="ui segment attached">
+		<p>Your disposable balance: <strong>${money.toFixed(2)}</strong>, cash flow {breakeven < 0 ? 'negative' : 'positive'} by <strong>${breakeven<0?'':'+'}{breakeven.toFixed(2)}/day</strong> </p>
 
 
-<table className="ui very basic collapsing celled table">
-  <thead>
-    <tr>
+		<h3>Cashflows</h3> <button className='ui button small' onClick={this.addCashflow.bind(this)}>add new</button>
 
-    <th></th>
-    <th>Name</th>
-    <th>Amount</th>
-    <th>How often</th>
-    <th>Start & End</th>
 
-  </tr></thead>
-  <tbody>
-  	{this.state.regularFlows.map((flow, i) => {
-	  return <CashflowView key={i} {...flow} deleteCashflow={this.deleteCashflow.bind(this, i)}/>;
-	})}
-  </tbody>
-</table>
+		<table className="ui very basic collapsing celled table">
+		  <thead>
+		    <tr>
 
-	  		
+		    <th></th>
+		    <th>Name</th>
+		    <th>Amount</th>
+		    <th>How often</th>
+		    <th>Start & End</th>
 
-			    </div>
-
-			    <div className='ui segment'>
+		  </tr></thead>
+		  <tbody>
+		  	{this.state.regularFlows.map((flow, i) => {
+			  return <CashflowView key={i} {...flow} deleteCashflow={this.deleteCashflow.bind(this, i)} editCashflow={this.editCashflow.bind(this, i)}/>;
+			})}
+		  </tbody>
+		</table>
+	</section>
 
 
 
-<h3 className='ui header'>Add new cashflow</h3>
-<form className="ui form">
-  <div className="field">
-    <label>Name</label>
-    <input type="text" placeholder="Cafe job"/>
-  </div>
-  <div className="inline field">
-    <label>$</label>
-    <input type="number" placeholder="120.2"/>
-  </div>
-  <div className="inline field">
-    <label>Every</label>
-    <input type="text" placeholder="2 days"/>
-  </div>
-  <div className="field">
-    <label>First date</label>
-    <input type="date"/>
-  </div>
-  <div className="field">
-    <label>Last date</label>
-    <input type="date"/>
-  </div>
-  <button className='ui button small'>save</button>
-</form>
+    <section className='ui segment'>
+		<h3 className='ui header'>Add/Edit cashflow</h3>
 
-			    </div>
-			  </div>
+		<AddNewCashflowForm saveCashflow={this.saveCashflow.bind(this)} editingCashflow={currentlyEditingCashflow}/>
+    </section>
 
-			</div>
+</div>
+</div>
+
+<div className="two column">
+	<section className="ui segment">
+
+	<p>How much do you currently have in total? <input type='number' onChange={this.linkState.bind(this, 'balance')} value={this.state.balance}/></p>
+	<p>Numdays: <input type='number' onChange={this.linkState.bind(this, 'numDays')} value={this.state.numDays}/></p>
+	<LineChart className="item" data={lineChartData} options={chartOptions}/>
 
 
-	  	</div>;
+	</section>
+</div>
+
+
+
+
+		</div>
+
+
+	  </div>;
 	}
 }
 
 ReactDOM.render(
-	<App saveStateOffline={false}/>,
+	<App saveStateOffline={true}/>,
 	document.getElementById('app')
 );
