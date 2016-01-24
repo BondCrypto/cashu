@@ -8,6 +8,21 @@ function linkState(propName, ev) {
 	newState[propName] = ev.target.value;
 	this.setState(newState);
 }
+function enumDays(count) {
+	let daysHumanized = [];
+
+	var today = new Date();
+
+	var year = today.getFullYear();
+	var month = today.getMonth();
+	var date = today.getDate();
+
+	for(var i=0; i<count; i++){
+	    var day=new Date(year, month, date + i); 
+	    daysHumanized.push(moment(day).format('Do'))
+	}
+	return daysHumanized
+}
 
 
 // Classes
@@ -292,11 +307,11 @@ class App extends React.Component {
 		var maxPeriod = 30;
 		let closingBalanceOverPeriod = new Array()
 		for(let day = 1; day < maxPeriod+1; day++) {
-			closingBalanceOverPeriod.push(this.getDisposableCash(moment().add(day, 'd')))
+			closingBalanceOverPeriod.push(this.getDisposableCash(moment().add(day, 'd')).toFixed(2))
 		}
 
 		let lineChartData = {
-			labels : listOfNums(days).map((v) => `${v}`),
+			labels : enumDays(days),
 			datasets : [
 				{
 					label: "Finances",
@@ -324,14 +339,16 @@ class App extends React.Component {
 
 
 
-<div className="ui two column grid container">
+<div className="ui container">
 
+<div className='ui two column grid'>
 
-<div className="two column row">
-<div className="column">
+<div className="row">
 
+<div className='ui column'>
 {alert}
 	<section className="ui segment attached">
+
 		<p>Your disposable balance: <strong>${money.toFixed(2)}</strong>, cash flow {breakeven < 0 ? 'negative' : 'positive'} by <strong>${breakeven<0?'':'+'}{breakeven.toFixed(2)}/day</strong> </p>
 
 
@@ -356,20 +373,19 @@ class App extends React.Component {
 		  </tbody>
 		</table>
 	</section>
+</div>
 
 
-
-    <section className='ui segment'>
+    <section className='ui column segment'>
 		<h3 className='ui header'>Add/Edit cashflow</h3>
 
 		<AddNewCashflowForm saveCashflow={this.saveCashflow.bind(this)} editingCashflow={currentlyEditingCashflow}/>
     </section>
 
 </div>
-</div>
 
-<div className="two column">
-	<section className="ui segment">
+<div className="row">
+	<section className="ui segment two columns">
 
 	<p>How much do you currently have in total? <input type='number' onChange={this.linkState.bind(this, 'balance')} value={this.state.balance}/></p>
 	<p>Numdays: <input type='number' onChange={this.linkState.bind(this, 'numDays')} value={this.state.numDays}/></p>
@@ -383,7 +399,7 @@ class App extends React.Component {
 
 
 		</div>
-
+</div>
 
 	  </div>;
 	}
